@@ -21,9 +21,7 @@
 ;; --------------------
 ;; Programming modes
 ;; --------------------
-(use-package go-mode :ensure t :hook ((go-mode . lsp-deferred)
-                                     (before-save . lsp-format-buffer)
-                                     (before-save . lsp-organize-imports)))
+
 (use-package lsp-mode :ensure t :commands lsp)
 (use-package lsp-ui :ensure t :commands lsp-ui-mode)
 (setq lsp-format-buffer nil)
@@ -112,25 +110,33 @@
 (global-set-key (kbd "C-c f") (lambda () (interactive) (find-file "~/.emacs")))
 (global-set-key (kbd "C-c r") (lambda () (interactive) (find-file "~/.zshrc")))
 (global-set-key (kbd "C-c i") (lambda () (interactive) (find-file "~/.config/i3/config")))
-(global-set-key (kbd "C-c v") (lambda () (interactive) (find-file "~/personal/Architect/")))
+(global-set-key (kbd "C-c v") (lambda () (interactive) (find-file "~/dev/")))
 
-;; Move text
-(global-set-key (kbd "M-p") 'move-text-up)
-(global-set-key (kbd "M-n") 'move-text-down)
 
-;; Duplicate line
-(defun duplicate-current-line ()
-  "Duplicate the current line."
-  (interactive)
-  (let ((col (- (point) (line-beginning-position))))
-    (save-excursion
-      (end-of-line)
-      (newline)
-      (yank))
-    (forward-char col)))
-(global-set-key (kbd "C-c d") 'duplicate-current-line)
+;; Make sure tree-sitter packages are installed
+(require 'tree-sitter)
+(require 'tree-sitter-langs)
 
-;; Select region
+;; Define a simple major mode for i3 configs
+(define-derived-mode i3-mode prog-mode "i3"
+  "Major mode for editing i3 WM config files."
+  ;; Enable tree-sitter
+  (tree-sitter-mode)
+  (tree-sitter-hl-mode))
+
+;; Associate i3 config files with i3-mode
+(add-to-list 'auto-mode-alist '("\\.config/i3/config\\'" . i3-mode))
+
+;; Make i3-mode use the ini parser
+(add-to-list 'tree-sitter-major-mode-language-alist '(i3-mode . ini))
+
+;; Optional: ensure the ini parser is installed
+
+(condition-case nil
+    (tree-sitter-require 'ini)
+  (error (message "ini parser not available")))
+
+
 (defun rc/select-word ()
   "Select the current word."
   (interactive)
@@ -151,6 +157,15 @@
   (set-mark (point))
   (move-end-of-line 1))
 
+(use-package bind-key
+  :ensure t)
+
+(with-eval-after-load 'cc-mode
+  (define-key c++-mode-map (kbd "C-c C-c") 'compile))
+
+
+(bind-key "C-c C-c" 'compile)
+
 (global-set-key (kbd "C-c w") 'rc/select-word)
 (global-set-key (kbd "C-c s") 'rc/select-sentence)
 (global-set-key (kbd "C-c l") 'rc/select-current-line)
@@ -158,8 +173,25 @@
 ;; --------------------
 ;; Misc
 ;; --------------------
-(set-face-attribute 'default nil :height 180)
+(set-face-attribute 'default nil :height 200)
+(setq create-lockfiles nil)
+(setq make-backup-files nil)
 
+(use-package counsel
+  :ensure t)
+
+(use-package lsp-ivy
+  :ensure t
+  :commands lsp-ivy-workspace-symbol)
+
+;; Optional keybinding
+(global-set-key (kbd "C-c g d") 'lsp-find-definition)
+(global-set-key (kbd "C-c g i") 'lsp-ivy-workspace-symbol)
+
+
+(setq compile-command "")
+
+(setq auto-save-default nil)
 (use-package gruber-darker-theme :ensure t :config (load-theme 'gruber-darker t))
 
 (set-frame-parameter (selected-frame) 'alpha '(85 . 85))
@@ -179,7 +211,8 @@
  ;; If you edit it by hand, you could mess it up, so be careful.
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
- '(warning-suppress-types '((comp) (comp) (comp))))
+ '(package-selected-packages
+   '(tree-sitter-ess-r tree-sitter-indent tree-sitter-langs tree-sitter-ispell tree-sitter lsp-ivy use-package smartparens lsp-ui gruber-darker-theme go-mode flycheck counsel company)))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
