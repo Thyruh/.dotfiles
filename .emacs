@@ -25,7 +25,11 @@
 ;;; UI / UX
 ;;; ------------------------------
 
+(set-face-attribute 'default nil :font "JetBrains Mono ExtraBold-23")
+
+
 ;;; ------------------------------
+
 ;;; Whitespace handling
 ;;; ------------------------------
 
