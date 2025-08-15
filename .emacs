@@ -1,20 +1,18 @@
 ;;; ~/.emacs --- Clean, opinionated Emacs config
 ;;; Author: Thyruh
 ;;; Commentary:
-;;; Structured into clear sections.  Safe to paste as your full ~/.emacs.
+;;; Structured into clear sections. Safe to paste as your full ~/.emacs.
 
 ;;; ------------------------------
 ;;; Bootstrap packages
 ;;; ------------------------------
 
-;; Load user customizations (optional)
-;;; Code:
 (load "~/.emacs-custom" 'noerror 'nomessage)
 
 (require 'package)
 (setq package-archives '(("melpa" . "https://melpa.org/packages/")
-                         ("gnu"   . "https://elpa.gnu.org/packages/")))
-(setq package-enable-at-startup nil)
+                         ("gnu"   . "https://elpa.gnu.org/packages/"))
+      package-enable-at-startup nil)
 (package-initialize)
 
 (unless (package-installed-p 'use-package)
@@ -27,53 +25,54 @@
 ;;; UI / UX
 ;;; ------------------------------
 
+;;; ------------------------------
+;;; Whitespace handling
+;;; ------------------------------
+
 (require 'whitespace)
 (add-hook 'before-save-hook 'delete-trailing-whitespace)
-(setq whitespace-style '(face tabs spaces trailing lines-tail))
+;; Highlight trailing spaces, tabs, and spaces; remove 'lines-tail' to hide dollar signs
+(setq whitespace-style '(face tabs spaces trailing))
 (global-whitespace-mode 1)
 
-;; Quieter startup
+(defun rc/set-up-whitespace-handling ()
+  "Enable basic whitespace handling without trailing $ markers."
+  (whitespace-mode 1)
+  (add-hook 'before-save-hook #'delete-trailing-whitespace nil t))
+(add-hook 'prog-mode-hook #'rc/set-up-whitespace-handling)
+(add-hook 'text-mode-hook #'rc/set-up-whitespace-handling)
+
 (setq inhibit-startup-screen t
       initial-scratch-message nil
       initial-buffer-choice t
       use-dialog-box nil)
 
-;; Minimal chrome
 (tool-bar-mode -1)
 (menu-bar-mode -1)
 (scroll-bar-mode -1)
 
-;; Cursor (filled box, not hollow/rectangle)
-(setq-default cursor-type 'box)
-(setq-default cursor-in-non-selected-windows 'box)
-(setq blink-cursor-mode t
-      blink-cursor-interval 0.5)
+(setq-default cursor-type 'box
+              cursor-in-non-selected-windows 'box)
+(blink-cursor-mode 1)
+(setq blink-cursor-interval 0.5)
 
-;; Font per-OS (adjust the size if you want)
 (defun rc/get-default-font ()
+  "Return the default font string depending on system."
   (cond
    ((eq system-type 'windows-nt) "Consolas-13")
    ((eq system-type 'gnu/linux)  "Iosevka-20")
    (t "Monospace-14")))
 (add-to-list 'default-frame-alist `(font . ,(rc/get-default-font)))
 
-;; Frame transparency (global)
-(defconst rc/frame-transparency 85)
-(set-frame-parameter (selected-frame) 'alpha `(,rc/frame-transparency . ,rc/frame-transparency))
-(add-to-list 'default-frame-alist `(alpha . (,rc/frame-transparency . ,rc/frame-transparency)))
-
-;; Lines, parens, highlight
 (setq display-line-numbers-type 'relative)
 (global-display-line-numbers-mode 1)
 (show-paren-mode 1)
 (setq show-paren-delay 0)
 (global-hl-line-mode 1)
 
-;; Tabs & indentation
 (setq-default tab-width 3
               indent-tabs-mode nil)
 
-;; Theme
 (use-package gruber-darker-theme
   :config (load-theme 'gruber-darker t))
 
@@ -86,38 +85,29 @@
   (require 'smartparens-config)
   (smartparens-global-mode 1))
 
-;; Whitespace discipline: show + clean trailing on save
-(defun rc/set-up-whitespace-handling ()
-  (whitespace-mode 1)
-  (add-hook 'before-save-hook #'delete-trailing-whitespace nil t))
-(add-hook 'prog-mode-hook #'rc/set-up-whitespace-handling)
-(add-hook 'text-mode-hook #'rc/set-up-whitespace-handling)
-
 (toggle-word-wrap 1)
 
 (use-package multiple-cursors
-  :bind
-  (("C->" . mc/mark-next-like-this)
-   ("C-<" . mc/mark-previous-like-this)
-   ("C-c C-<" . mc/mark-all-like-this)))
+  :bind (("C->" . mc/mark-next-like-this)
+         ("C-<" . mc/mark-previous-like-this)
+         ("C-c C-<" . mc/mark-all-like-this)))
 
-;; Fast select helpers
 (defun rc/select-word ()
-  "Select the current word (symbols count)."
+  "Select word."
   (interactive)
   (skip-syntax-backward "w_")
   (set-mark (point))
   (skip-syntax-forward "w_"))
 
 (defun rc/select-sentence ()
-  "Select current sentence."
+  "Select sentence."
   (interactive)
   (backward-sentence 1)
   (set-mark (point))
   (forward-sentence 1))
 
 (defun rc/select-current-line ()
-  "Select the whole current line."
+  "Select current line."
   (interactive)
   (move-beginning-of-line 1)
   (set-mark (point))
@@ -132,7 +122,6 @@
 (use-package company :config (global-company-mode 1))
 (use-package flycheck :init (global-flycheck-mode 1))
 
-;; LSP: no auto-formatting; explicit control only
 (use-package lsp-mode
   :init
   (setq lsp-enable-indentation nil
@@ -144,10 +133,9 @@
 (use-package lsp-ivy :after (lsp-mode ivy) :commands lsp-ivy-workspace-symbol)
 
 ;;; ------------------------------
-;;; Tree-sitter (works both on Emacs 28/29)
+;;; Tree-sitter
 ;;; ------------------------------
 
-;; Prefer external tree-sitter if needed
 (use-package tree-sitter :defer t)
 (use-package tree-sitter-langs :after tree-sitter :defer t)
 (when (require 'tree-sitter nil 'noerror)
@@ -160,6 +148,7 @@
 
 (require 'dired-x)
 
+;; Corrected: use setq instead of defvar with multiple variables
 (setq dired-listing-switches "-alFhG --group-directories-first"
       dired-dwim-target t
       dired-mouse-drag-files t)
@@ -171,28 +160,23 @@
 ;;; Compilation workflow
 ;;; ------------------------------
 
-;; Compilation window at bottom, fixed height
 (setq display-buffer-alist
       '(("\\*compilation\\*"
          (display-buffer-reuse-window display-buffer-at-bottom)
          (window-height . 15))))
 
-;; Empty default compile command when using M-x compile
 (global-set-key (kbd "C-c C-c") 'compile)
 (setq compile-command ""
       compilation-read-command t)
 
-;; Colored output in *compilation*
 (require 'ansi-color)
 (defun rc/colorize-compilation-buffer ()
   (let ((inhibit-read-only t))
     (ansi-color-apply-on-region compilation-filter-start (point))))
 (add-hook 'compilation-filter-hook #'rc/colorize-compilation-buffer)
 
-;; One-key compile of current file into sibling bin/
 (defun rc/compile-file-to-bin ()
-  "Compile current buffer into bin/ alongside the file.
-Supports: .cpp (g++), .go (go build), .hs (ghc)."
+  "Automatically compiles .cpp/.go/.hs files to 'bin/' directory."
   (interactive)
   (unless buffer-file-name (user-error "Buffer not visiting a file"))
   (let* ((file buffer-file-name)
@@ -203,11 +187,17 @@ Supports: .cpp (g++), .go (go build), .hs (ghc)."
       (make-directory bin))
     (cond
      ((string-match-p "\\.cpp$" file)
-      (compile (format "g++ -O2 -std=c++20 -o %s %s" (shell-quote-argument out) (shell-quote-argument file))))
+      (compile (format "g++ -O2 -std=c++20 -o %s %s"
+                       (shell-quote-argument out)
+                       (shell-quote-argument file))))
      ((string-match-p "\\.go$" file)
-      (compile (format "go build -o %s %s" (shell-quote-argument out) (shell-quote-argument file))))
+      (compile (format "go build -o %s %s"
+                       (shell-quote-argument out)
+                       (shell-quote-argument file))))
      ((string-match-p "\\.hs$" file)
-      (compile (format "ghc --make %s -o %s" (shell-quote-argument file) (shell-quote-argument out))))
+      (compile (format "ghc --make %s -o %s"
+                       (shell-quote-argument file)
+                       (shell-quote-argument out))))
      (t (user-error "Unsupported file type: %s" file)))))
 
 (global-set-key (kbd "C-c c") #'rc/compile-file-to-bin)
@@ -219,7 +209,6 @@ Supports: .cpp (g++), .go (go build), .hs (ghc)."
 (use-package magit
   :commands (magit-status magit-log-all)
   :config
-  ;; Disable auto-revert inside Magit if you dislike the churn
   (when (fboundp 'magit-auto-revert-mode)
     (magit-auto-revert-mode -1)))
 
@@ -227,63 +216,36 @@ Supports: .cpp (g++), .go (go build), .hs (ghc)."
 ;;; Quality-of-life keys
 ;;; ------------------------------
 
-(define-prefix-command 'ralt-map)
-(global-set-key (kbd "<Alt_R>") 'ralt-map)
-
-(define-key ralt-map (kbd "g") #'lsp-find-definition)
-(define-key ralt-map (kbd "f") #'lsp-ivy-workspace-symbol)
-
-;; Vim-like window cycling
+(global-set-key (kbd "C-x C-r") 'query-replace)
 (global-set-key (kbd "C-x C-w") 'other-window)
-
-;; Global escape quits
 (global-set-key (kbd "<escape>") #'keyboard-escape-quit)
-
-;; Ivy: quick buffer switch
 (global-set-key (kbd "C-,") #'counsel-switch-buffer)
 
-;; Fast selections
 (global-set-key (kbd "C-c w") #'rc/select-word)
 (global-set-key (kbd "C-c s") #'rc/select-sentence)
 (global-set-key (kbd "C-c l") #'rc/select-current-line)
 
-;; Functions for testing
-(defun my-left-alt-action ()
-  (interactive)
-  (message "Left Alt pressed"))
-
-(defun my-right-alt-action ()
-  (interactive)
-  (message "Right Alt pressed"))
-
-;; Key translations
-(define-key key-translation-map (kbd "<Alt_L>") 'my-left-alt-action)
-(define-key key-translation-map (kbd "<Alt_R>") 'my-right-alt-action)
-
-;; LSP quick keys (explicit; no guessing)
 (global-set-key (kbd "C-c g d") #'lsp-find-definition)
 (global-set-key (kbd "C-c g i") #'lsp-ivy-workspace-symbol)
 
-;; Shell on demand
-(global-set-key (kbd "C-h l") #'shell) ;; replace default view-lossage
-
-;; Copy region (M-w already does this; keep explicit)
+(global-set-key (kbd "C-h l") #'shell)
 (global-set-key (kbd "M-w") #'copy-region-as-kill)
-
-;; Confirm quit
 (setq confirm-kill-emacs #'yes-or-no-p)
 
 ;;; ------------------------------
-;;; Eval control (safety check)
+;;; Eval control
 ;;; ------------------------------
 
-(defun rc/eval-buffer-confirm ()
-  "Eval buffer only if user types yes."
+(defun rc/eval-buffer ()
+  "Evaluate current Emacs Lisp buffer safely."
   (interactive)
-  (if (string= (read-string "Type 'yes' to eval buffer: ") "yes")
-      (progn (eval-buffer) (message "Buffer evaluated!"))
-    (message "Evaluation cancelled.")))
-(global-set-key (kbd "C-j") #'rc/eval-buffer-confirm)
+  (if (eq major-mode 'emacs-lisp-mode)
+      (progn
+        (funcall (symbol-function 'eval-buffer))
+        (message "Buffer evaluated!"))
+    (message "Not an Emacs Lisp buffer.")))
+
+(global-set-key (kbd "C-j") #'rc/eval-buffer)
 
 ;;; ------------------------------
 ;;; Per-file quick jumps
@@ -303,13 +265,12 @@ Supports: .cpp (g++), .go (go build), .hs (ghc)."
       create-lockfiles nil)
 
 ;;; ------------------------------
-;;; Extras you referenced (fixed)
+;;; Extras
 ;;; ------------------------------
 
-;; Move text up/down (you bound M-p/M-n earlier but the command wasn't installed)
 (use-package move-text
   :config
-  (move-text-default-bindings) ; sets M-<up>/<down>; keep your preferred bindings too
+  (move-text-default-bindings)
   (global-set-key (kbd "M-p") #'move-text-up)
   (global-set-key (kbd "M-n") #'move-text-down))
 
@@ -317,23 +278,7 @@ Supports: .cpp (g++), .go (go build), .hs (ghc)."
 ;;; Final touches
 ;;; ------------------------------
 
-;; Keep Custom from polluting this file; write to a separate file instead.
 (setq custom-file (expand-file-name "~/.emacs-custom-vars.el"))
 (load custom-file 'noerror 'nomessage)
 
-;;; ~/.emacs ends here
-
-
-(custom-set-variables
- ;; custom-set-variables was added by Custom.
- ;; If you edit it by hand, you could mess it up, so be careful.
- ;; Your init file should contain only one such instance.
- ;; If there is more than one, they won't work right.
- '(package-selected-packages
-   '(move-text use-package tree-sitter-ispell tree-sitter-indent tree-sitter-ess-r smartparens rc-mode magit lsp-ui lsp-ivy gruber-darker-theme go-mode flycheck counsel company)))
-(custom-set-faces
- ;; custom-set-faces was added by Custom.
- ;; If you edit it by hand, you could mess it up, so be careful.
- ;; Your init file should contain only one such instance.
- ;; If there is more than one, they won't work right.
- )
+;;; .emacs ends here
