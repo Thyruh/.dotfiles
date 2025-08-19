@@ -1,18 +1,18 @@
 ;;; ~/.emacs --- Clean, opinionated Emacs config
 ;;; Author: Thyruh
 ;;; Commentary:
-;;; Structured into clear sections. Safe to paste as your full ~/.emacs.
+;;; Structured into clear sections.  Safe to paste as your full ~/.emacs.
 
 ;;; ------------------------------
 ;;; Bootstrap packages
 ;;; ------------------------------
 
-(load "~/.emacs-custom" 'noerror 'nomessage)
+;;; Code:
 
 (require 'package)
 (setq package-archives '(("melpa" . "https://melpa.org/packages/")
-                         ("gnu"   . "https://elpa.gnu.org/packages/"))
-      package-enable-at-startup nil)
+                        ("gnu"   . "https://elpa.gnu.org/packages/"))
+package-enable-at-startup nil)
 (package-initialize)
 
 (unless (package-installed-p 'use-package)
@@ -25,8 +25,9 @@
 ;;; UI / UX
 ;;; ------------------------------
 
-(set-face-attribute 'default nil :font "JetBrains Mono ExtraBold-23")
+(set-face-attribute 'default nil :font "JetBrains Mono ExtraBold-18")
 
+(load-theme 'gruber-darker t)
 
 ;;; ------------------------------
 
@@ -60,29 +61,23 @@
 (blink-cursor-mode 1)
 (setq blink-cursor-interval 0.5)
 
-(defun rc/get-default-font ()
-  "Return the default font string depending on system."
-  (cond
-   ((eq system-type 'windows-nt) "Consolas-13")
-   ((eq system-type 'gnu/linux)  "Iosevka-20")
-   (t "Monospace-14")))
-(add-to-list 'default-frame-alist `(font . ,(rc/get-default-font)))
-
 (setq display-line-numbers-type 'relative)
 (global-display-line-numbers-mode 1)
 (show-paren-mode 1)
 (setq show-paren-delay 0)
 (global-hl-line-mode 1)
 
-(setq-default tab-width 3
+(setq-default tab-width 4
               indent-tabs-mode nil)
-
-(use-package gruber-darker-theme
-  :config (load-theme 'gruber-darker t))
 
 ;;; ------------------------------
 ;;; Core editing helpers
 ;;; ------------------------------
+
+
+(setq-default scroll-margin 5
+              scroll-conservatively 9999
+              scroll-step 1)
 
 (use-package smartparens
   :config
@@ -109,6 +104,23 @@
   (backward-sentence 1)
   (set-mark (point))
   (forward-sentence 1))
+
+(defun scratch-compile ()
+  "Compile and run the *scratch* buffer as C++ without leaving files."
+  (interactive)
+  (if (not (eq (current-buffer) (get-buffer "*scratch*")))
+      (message "scratch-compile only works in *scratch* buffer")
+    (let* ((tmp (make-temp-file "emacs-cpp-" nil ".cpp"))
+           (bin (concat tmp ".out")))
+      (write-region (point-min) (point-max) tmp nil 'silent)
+      (compile
+       (format "g++ -std=c++23 -O2 -Wall %s -o %s && %s && rm -f %s %s"
+               tmp bin bin bin tmp)))))
+
+;; Optional: bind in *scratch* only
+(with-current-buffer "*scratch*"
+  (c++-mode)
+  (local-set-key (kbd "C-c C-c") #'scratch-compile))
 
 (defun rc/select-current-line ()
   "Select current line."
@@ -159,6 +171,8 @@
 
 (add-hook 'dired-mode-hook #'dired-omit-mode)
 (setq dired-omit-files (concat dired-omit-files "\\|^\\..+$"))
+
+
 
 ;;; ------------------------------
 ;;; Compilation workflow
@@ -219,6 +233,8 @@
 ;;; ------------------------------
 ;;; Quality-of-life keys
 ;;; ------------------------------
+
+(global-set-key (kbd "M-d") 'backward-delete-char)
 
 (global-set-key (kbd "C-x C-r") 'query-replace)
 (global-set-key (kbd "C-x C-w") 'other-window)

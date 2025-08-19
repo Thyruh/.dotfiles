@@ -12,12 +12,12 @@
 
 set $mod Mod4
 
-# Font for window titles. Will also be used by the bar unless a different font
-# is used in the bar {} block below.
 font pango:monospace 8
 
 # This font is widely installed, provides lots of unicode glyphs, right-to-left
 # text rendering and scalability on retina/hidpi displays (thanks to pango).
+# Font for window titles. Will also be used by the bar unless a different font
+# is used in the bar {} block below.
 #font pango:DejaVu Sans Mono 8
 
 # Start XDG autostart .desktop files using dex. See also
@@ -35,6 +35,9 @@ exec --no-startup-id dex --autostart --environment i3
 # and nm-applet is a desktop environment-independent system tray GUI for it.
 exec --no-startup-id nm-applet
 
+bindsym XF86MonBrightnessUp exec --no-startup-id brightnessctl set +10%
+bindsym XF86MonBrightnessDown exec --no-startup-id brightnessctl set 10%-
+
 # Use pactl to adjust volume in PulseAudio.
 set $refresh_i3status killall -SIGUSR1 i3status
 bindsym XF86AudioRaiseVolume exec --no-startup-id pactl set-sink-volume @DEFAULT_SINK@ +10% && $refresh_i3status
@@ -51,6 +54,7 @@ tiling_drag modifier titlebar
 # ---------------------------------------------------------
 
 bindsym $mod+Return exec --no-startup-id pgrep -x tilix || tilix; [class="Tilix"] focus, fullscreen
+bindsym $mod+c exec --no-startup-id tilix
 
 bindsym $mod+Shift+q kill
 
@@ -78,14 +82,14 @@ bindsym $mod+Shift+l move right
 # bindsym $mod+v split h
 
 # split in vertical orientation
-# bindsym $mod+v split v
+bindsym $mod+v split h
 
 # enter fullscreen mode for the focused container
 bindsym $mod+f fullscreen toggle
 
 # change container layout (stacked, tabbed, toggle split)
-# bindsym $mod+s 
-# bindsym $mod+w 
+# bindsym $mod+s
+# bindsym $mod+w
 
 
 # toggle tiling / floating
@@ -113,7 +117,19 @@ set $ws7 "7"
 set $ws8 "8"
 set $ws9 "9"
 set $ws10 "10"
-set $ws11 "11"
+set $ws11 "69"
+
+# Attach workspaces to displays
+workspace 1 output eDP-1
+workspace 2 output HDMI-2
+workspace 3 output HDMI-2
+workspace 4 output HDMI-2
+workspace 5 output HDMI-2
+workspace 6 output HDMI-2
+workspace 7 output HDMI-2
+workspace 8 output HDMI-2
+workspace 9 output HDMI-2
+workspace 10 output HDMI-2
 
 # switch to workspace
 bindsym $mod+1 workspace number $ws1
@@ -147,34 +163,6 @@ bindsym $mod+Shift+r restart
 # exit i3 (logs you out of your X session)
 bindsym $mod+Shift+e exec "i3-nagbar -t warning -m 'You pressed the exit shortcut. Do you really want to exit i3? This will end your X session.' -B 'Yes, exit i3' 'i3-msg exit'"
 
-# resize window (you can also use the mouse for that)
-mode "resize" {
-        # These bindings trigger as soon as you enter the resize mode
-
-        # Pressing left will shrink the window’s width.
-        # Pressing right will grow the window’s width.
-        # Pressing up will shrink the window’s height.
-        # Pressing down will grow the window’s height.
-        bindsym j resize shrink width 10 px or 10 ppt
-        bindsym k resize grow height 10 px or 10 ppt
-        bindsym l resize shrink height 10 px or 10 ppt
-        bindsym semicolon resize grow width 10 px or 10 ppt
-
-        # same bindings, but for the arrow keys
-        bindsym Left resize shrink width 10 px or 10 ppt
-        bindsym Down resize grow height 10 px or 10 ppt
-        bindsym Up resize shrink height 10 px or 10 ppt
-        bindsym Right resize grow width 10 px or 10 ppt
-
-        # back to normal: Enter or Escape or $mod+r
-        bindsym Return mode "default"
-        bindsym Escape mode "default"
-        bindsym $mod+r mode "default"
-}
-
-bindsym $mod+r mode "resize"
-
-
 # set colors from .Xresources with fallback
 set_from_resource $fg           color7  #2AA198
 set_from_resource $bg           color0  #1F2D3A
@@ -195,62 +183,64 @@ client.background       $bg
 # finds out, if available)
 bar {
         status_command i3status
-        position bottom 
-        output HDMI-2 # MSI
+        position top
+#        output HDMI-2 # MSI
         output eDP-1
         separator_symbol " | "
         font pango:Hack, FontAwesome 9
 }
 
-# Set layout toggle (Alt+Shift) between US and Russian
-# exec --no-startup-id setxkbmap -layout us,ru -variant dvorak-qwerty, -option grp:alt_shift_toggle
-
-# Set the initial keyboard layout (US)
-exec --no-startup-id setxkbmap us
+exec setxkbmap -layout "us,real-prog-dvorak,ru" -variant "basic," -option "grp:alt_shift_toggle,caps:ctrl_modifier"
 
 # Rest of the config
 exec --no-startup-id picom
 exec --no-startup-id pkill dunst
-exec xrandr --output HDMI-2 --primary --left-of eDP-1
 
 exec --no-startup-id xset -dpms
 exec --no-startup-id xset s off
 exec --no-startup-id xset s noblank
 
-# exec randr --output <insert the name of the screen> --rotate <whatever> 
 bindsym $mod+Shift+s exec --no-startup-id flameshot gui
 
 # Redshift (blue light)
 exec --no-startup-id redshift
 
+# The zoom software, thanks Tsoding :)
+bindsym F1 exec cd ~/.local/bin && ./boomer
+# Ugliest method in my coding career btw, but idk, it didn't work any other way...
 
 assign [class="Spotify"] → 1
 assign [class="zen"] → 2
 assign [class="Tilix"] → 3
-assign [class="MultiMC"] → 4
-assign [class="discord"] → 5
-assign [class="Telegram"] → 5
-assign [class="Gimp"] → 6
+assign [class="Emacs"] → 3
+assign [class="MultiMC"] → 5
+assign [class="discord"] → 4
+assign [class="Telegram"] → 4
 assign [class="nautilus"] → 7
 assign [class="Nautilus"] → 7
 assign [class="org.gnome.Nautilus"] → 7
 
+
+exec --no-startup-id discord
 exec --no-startup-id zen
+exec --no-startup-id emacs
 exec --no-startup-id spotify
 exec --no-startup-id tilix
-exec --no-startup-id multimc
-exec --no-startup-id discord
 exec --no-startup-id telegram-desktop
-exec --no-startup-id gimp
 
 
 #bindsym $mod+c exec --no-startup-id pgrep -x chromium || chromium; [class="Chromium"] focus, fullscreen
 #bindsym $mod+n exec --no-startup-id pgrep -x discord || discord; [class="discord"] focus, fullscreen
 #bindsym $mod+m exec --no-startup-id pgrep -x multimc || multimc; [class="MultiMC"] focus, fullscreen
 #bindsym $mod+t exec --no-startup-id pgrep -x telegram-desktop || telegram-desktop; [class="Telegram"] focus, fullscreen
+bindsym $mod+e exec --no-startup-id pgrep -x emacs || emacs --no-splash; [class="Emacs"] focus, fullscreen
 
-exec feh --bg-scale /home/thyruh/personal/Yuzef/Pics/wallpaper1.jpg
+
+exec xrandr --output eDP-1 --off
+exec xrandr --output eDP-1 --auto --pos 0x-768 --output HDMI-2 --primary --auto --pos 0x0
+
+exec feh --bg-scale /home/thyruh/dev/Personal/archive/feetpics/wallpaper1.jpg
 bindsym $mod+x [class="^(?i)(?!zen)(?!tilix)(?!telegram)(?!multimc)(?!discord)(?!spotify).*"] kill
 
-
-
+focus_follows_mouse no
+hide_edge_borders both
