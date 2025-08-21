@@ -35,6 +35,7 @@ export PATH=$PATH:/snap/bin
 export PATH=$PATH:$HOME/.local/opt/go/bin
 
 set -o vi  # Vim mode
+setxkbmap -layout "us,real-prog-dvorak,ru" -option "grp:alt_shift_toggle,caps:ctrl_modifier"
 
 [ -f "/home/thyruh/.ghcup/env" ] && . "/home/thyruh/.ghcup/env" # ghcup-env
 clear

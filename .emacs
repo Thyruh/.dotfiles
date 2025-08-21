@@ -74,7 +74,6 @@ package-enable-at-startup nil)
 ;;; Core editing helpers
 ;;; ------------------------------
 
-
 (setq-default scroll-margin 5
               scroll-conservatively 9999
               scroll-step 1)

@@ -190,9 +190,8 @@ bar {
         font pango:Hack, FontAwesome 9
 }
 
-exec setxkbmap -layout "us,real-prog-dvorak,ru" -variant "basic," -option "grp:alt_shift_toggle,caps:ctrl_modifier"
 
-# Rest of the config
+#Rest of the config
 exec --no-startup-id picom
 exec --no-startup-id pkill dunst
 
@@ -202,7 +201,8 @@ exec --no-startup-id xset s noblank
 
 bindsym $mod+Shift+s exec --no-startup-id flameshot gui
 
-# Redshift (blue light)
+exec setxkbmap -layout "us,real-prog-dvorak,ru" -option "grp:alt_shift_toggle,caps:escape"
+
 exec --no-startup-id redshift
 
 # The zoom software, thanks Tsoding :)
@@ -210,7 +210,7 @@ bindsym F1 exec cd ~/.local/bin && ./boomer
 # Ugliest method in my coding career btw, but idk, it didn't work any other way...
 
 assign [class="Spotify"] → 1
-assign [class="zen"] → 2
+assign [class="Vivaldi"] → 2
 assign [class="Tilix"] → 3
 assign [class="Emacs"] → 3
 assign [class="MultiMC"] → 5
@@ -220,9 +220,8 @@ assign [class="nautilus"] → 7
 assign [class="Nautilus"] → 7
 assign [class="org.gnome.Nautilus"] → 7
 
-
 exec --no-startup-id discord
-exec --no-startup-id zen
+exec --no-startup-id vivaldi
 exec --no-startup-id emacs
 exec --no-startup-id spotify
 exec --no-startup-id tilix
