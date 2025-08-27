@@ -1,0 +1,387 @@
+;;; ~/.emacs --- Clean, opinionated Emacs config
+;;; Author: Thyruh
+;;; Commentary:
+;;; Structured into clear sections. Safe to paste as your full ~/.emacs.
+
+;;; ------------------------------
+;;; Bootstrap packages
+;;; ------------------------------
+(require 'package)
+(setq package-archives '(("melpa" . "https://melpa.org/packages/")
+                         ("gnu"   . "https://elpa.gnu.org/packages/"))
+      package-enable-at-startup nil)
+(package-initialize)
+
+(unless (package-installed-p 'use-package)
+  (package-refresh-contents)
+  (package-install 'use-package))
+(require 'use-package)
+(setq use-package-always-ensure t)
+
+;;; ------------------------------
+;;; Minibuffer completion style (Tsoding-like)
+;;; ------------------------------
+;; Pure icomplete/fido (horizontal) + Marginalia annotations.
+(icomplete-mode 1)
+(fido-mode 1)
+(fido-vertical-mode -1) ;; ensure horizontal UI, not vertical
+
+(setq icomplete-compute-delay 0
+      icomplete-hide-common-prefix nil
+      icomplete-show-matches-on-no-input t)
+
+;; Make C-n / C-p move through candidates (not history)
+(with-eval-after-load 'icomplete
+  (define-key icomplete-minibuffer-map (kbd "C-n") #'icomplete-forward-completions)
+  (define-key icomplete-minibuffer-map (kbd "C-p") #'icomplete-backward-completions))
+
+;; Nice annotations in minibuffer candidates
+(use-package marginalia
+  :init (marginalia-mode 1))
+
+;; Explicitly disable Ivy/Counsel to avoid conflicts with icomplete
+(when (fboundp 'ivy-mode)    (ivy-mode -1))
+(when (fboundp 'counsel-mode)(counsel-mode -1))
+
+;;; ------------------------------
+;;; Consult (Telescope-like pickers)
+;;; ------------------------------
+(use-package consult
+  :bind (("C-,"   . consult-buffer)     ;; buffers + recent files
+         ("C-/"   . consult-line)       ;; search in current buffer
+         ;; C-. bound below after unbinding Evil's default mapping
+         ("M-y"   . consult-yank-pop)   ;; fuzzy kill-ring
+         ("C-x b" . consult-buffer)
+         ("C-x r b" . consult-bookmark)
+         ("C-x C-r" . consult-recent-file))
+  :config
+  ;; Fix consult-project root detection for VC repos
+  (setq consult-project-function
+        (lambda (_prompt) (when (fboundp 'vc-root-dir) (vc-root-dir))))
+  (setq consult-project-root-function
+        (lambda () (when (fboundp 'vc-root-dir) (vc-root-dir))))
+
+  ;; Project ripgrep helper
+  (defun thy/consult-ripgrep-project ()
+    "Run consult-ripgrep from the project root if available, else default dir."
+    (interactive)
+    (let ((default-directory (or (funcall consult-project-root-function)
+                                 default-directory)))
+      (consult-ripgrep default-directory))))
+
+;; Unbind Evil's default C-. (evil-repeat-pop) and remap to ripgrep
+(with-eval-after-load 'evil
+  (define-key evil-normal-state-map (kbd "C-.") nil)
+  (define-key evil-motion-state-map (kbd "C-.") nil))
+(global-set-key (kbd "C-.") #'thy/consult-ripgrep-project)
+
+;;; ------------------------------
+;;; UI / UX
+;;; ------------------------------
+(set-face-attribute 'default nil :font "JetBrains Mono ExtraBold-18")
+(add-to-list 'custom-theme-load-path "~/.emacs.d/themes/gruber-darker")
+(load-theme 'gruber-darker t)
+
+(tool-bar-mode -1)
+(menu-bar-mode -1)
+(scroll-bar-mode -1)
+
+(setq-default cursor-type 'box
+              cursor-in-non-selected-windows 'box)
+(blink-cursor-mode 1)
+(setq blink-cursor-interval 0.5)
+
+(setq display-line-numbers-type 'relative)
+(global-display-line-numbers-mode 1)
+(show-paren-mode 1)
+(setq show-paren-delay 0)
+(global-hl-line-mode 1)
+
+(setq-default tab-width 4
+              indent-tabs-mode nil)
+
+(setq inhibit-startup-screen t
+      initial-scratch-message nil
+      initial-buffer-choice t
+      use-dialog-box nil)
+
+;;; ------------------------------
+;;; Whitespace handling
+;;; ------------------------------
+(require 'whitespace)
+(setq whitespace-style '(face tabs spaces trailing))
+(global-whitespace-mode 1)
+(add-hook 'before-save-hook 'delete-trailing-whitespace)
+
+(defun rc/set-up-whitespace-handling ()
+  "Enable basic whitespace handling without trailing $ markers."
+  (whitespace-mode 1)
+  (add-hook 'before-save-hook #'delete-trailing-whitespace nil t))
+(add-hook 'prog-mode-hook #'rc/set-up-whitespace-handling)
+(add-hook 'text-mode-hook #'rc/set-up-whitespace-handling)
+
+;;; ------------------------------
+;;; Core editing helpers
+;;; ------------------------------
+(setq-default scroll-margin 5
+              scroll-conservatively 9999
+              scroll-step 1)
+
+(use-package smartparens
+  :config
+  (require 'smartparens-config)
+  (smartparens-global-mode 1))
+
+(toggle-word-wrap 1)
+
+(use-package multiple-cursors
+  :bind (("C->" . mc/mark-next-like-this)
+         ("C-<" . mc/mark-previous-like-this)
+         ("C-c C-<" . mc/mark-all-like-this)))
+
+(defun rc/select-word ()
+  "Select word."
+  (interactive)
+  (skip-syntax-backward "w_")
+  (set-mark (point))
+  (skip-syntax-forward "w_"))
+
+(defun rc/select-sentence ()
+  "Select sentence."
+  (interactive)
+  (backward-sentence 1)
+  (set-mark (point))
+  (forward-sentence 1))
+
+(defun rc/select-current-line ()
+  "Select current line."
+  (interactive)
+  (move-beginning-of-line 1)
+  (set-mark (point))
+  (move-end-of-line 1))
+
+(defun scratch-compile ()
+  "Compile and run the *scratch* buffer as C++ without leaving files."
+  (interactive)
+  (if (not (eq (current-buffer) (get-buffer "*scratch*")))
+      (message "scratch-compile only works in *scratch* buffer")
+    (let* ((tmp (make-temp-file "emacs-cpp-" nil ".cpp"))
+           (bin (concat tmp ".out")))
+      (write-region (point-min) (point-max) tmp nil 'silent)
+      (compile
+       (format "g++ -std=c++23 -O2 -Wall %s -o %s && %s && rm -f %s %s"
+               tmp bin bin bin tmp)))))
+
+(with-current-buffer "*scratch*"
+  (c++-mode)
+  (local-set-key (kbd "C-c C-c") #'scratch-compile))
+
+
+;;; ------------------------------
+;;; Minibuffer completion (horizontal icomplete)
+;;; ------------------------------
+(icomplete-mode 1)
+(fido-mode 1)
+(fido-vertical-mode -1) ;; make sure it's horizontal
+
+(setq icomplete-compute-delay 0
+      icomplete-hide-common-prefix nil
+      icomplete-show-matches-on-no-input t
+      icomplete-separator " | ") ;; horizontal separator
+
+;; C-n / C-p cycle candidates instead of history
+(with-eval-after-load 'icomplete
+  (define-key icomplete-minibuffer-map (kbd "C-n") #'icomplete-forward-completions)
+  (define-key icomplete-minibuffer-map (kbd "C-p") #'icomplete-backward-completions))
+
+
+;;; ------------------------------
+;;; In-buffer completion & diagnostics
+;;; ------------------------------
+(use-package corfu
+  :config
+  (global-corfu-mode)
+  (setq corfu-auto t
+        corfu-preselect 'first
+        corfu-count 8))
+
+(use-package flycheck
+  :init (global-flycheck-mode 1))
+
+(use-package lsp-mode
+  :init
+  (setq lsp-enable-indentation nil
+        lsp-enable-on-type-formatting nil)
+  :hook ((go-mode c-mode c++-mode python-mode rust-mode haskell-mode) . lsp-deferred)
+  :commands (lsp lsp-deferred))
+
+(use-package lsp-ui :after lsp-mode :commands lsp-ui-mode)
+
+;;; ------------------------------
+;;; Tree-sitter
+;;; ------------------------------
+(use-package tree-sitter :defer t)
+(use-package tree-sitter-langs :after tree-sitter :defer t)
+(when (require 'tree-sitter nil 'noerror)
+  (global-tree-sitter-mode 1)
+  (add-hook 'tree-sitter-after-on-hook #'tree-sitter-hl-mode))
+
+;;; ------------------------------
+;;; Dired
+;;; ------------------------------
+(require 'dired-x)
+(setq dired-listing-switches "-alFhG --group-directories-first"
+      dired-dwim-target t
+      dired-mouse-drag-files t)
+
+(add-hook 'dired-mode-hook #'dired-omit-mode)
+(setq dired-omit-files (concat dired-omit-files "\\|^\\..+$"))
+
+;;; ------------------------------
+;;; Compilation workflow
+;;; ------------------------------
+(setq display-buffer-alist
+      '(("\\*compilation\\*"
+         (display-buffer-reuse-window display-buffer-at-bottom)
+         (window-height . 15))))
+
+(global-set-key (kbd "C-c C-c") 'compile)
+(setq compile-command ""
+      compilation-read-command t)
+
+(require 'ansi-color)
+(defun rc/colorize-compilation-buffer ()
+  (let ((inhibit-read-only t))
+    (ansi-color-apply-on-region compilation-filter-start (point))))
+(add-hook 'compilation-filter-hook #'rc/colorize-compilation-buffer)
+
+(defun rc/compile-file-to-bin ()
+  "Automatically compiles .cpp/.go/.hs files to 'bin/' directory."
+  (interactive)
+  (unless buffer-file-name (user-error "Buffer not visiting a file"))
+  (let* ((file buffer-file-name)
+         (dir  (file-name-directory file))
+         (bin  (expand-file-name "bin" dir))
+         (out  (expand-file-name (file-name-sans-extension (file-name-nondirectory file)) bin)))
+    (unless (file-directory-p bin)
+      (make-directory bin))
+    (cond
+     ((string-match-p "\\.cpp$" file)
+      (compile (format "g++ -O2 -std=c++23 -o %s %s"
+                       (shell-quote-argument out)
+                       (shell-quote-argument file))))
+     ((string-match-p "\\.go$" file)
+      (compile (format "go build -o %s %s"
+                       (shell-quote-argument out)
+                       (shell-quote-argument file))))
+     ((string-match-p "\\.hs$" file)
+      (compile (format "ghc --make %s -o %s"
+                       (shell-quote-argument file)
+                       (shell-quote-argument out))))
+     (t (user-error "Unsupported file type: %s" file)))))
+
+(global-set-key (kbd "C-c c") #'rc/compile-file-to-bin)
+
+;;; ------------------------------
+;;; Magit
+;;; ------------------------------
+(use-package magit
+  :commands (magit-status magit-log-all)
+  :config
+  (when (fboundp 'magit-auto-revert-mode)
+    (magit-auto-revert-mode -1)))
+
+;;; ------------------------------
+;;; Quality-of-life keys
+;;; ------------------------------
+(global-set-key (kbd "M-d") 'backward-delete-char)
+(global-set-key (kbd "C-x C-r") 'query-replace)
+(global-set-key (kbd "C-x C-w") 'other-window)
+(global-set-key (kbd "<escape>") #'keyboard-escape-quit)
+
+;; Buffer switching (Tsoding-style, via Consult)
+(global-set-key (kbd "C-,") #'consult-buffer)
+
+(global-set-key (kbd "C-c w") #'rc/select-word)
+(global-set-key (kbd "C-c s") #'rc/select-sentence)
+(global-set-key (kbd "C-c l") #'rc/select-current-line)
+
+(global-set-key (kbd "C-c g d") #'lsp-find-definition)
+
+(global-set-key (kbd "C-h l") #'shell)
+(global-set-key (kbd "M-w") #'copy-region-as-kill)
+(setq confirm-kill-emacs #'yes-or-no-p)
+
+;;; ------------------------------
+;;; Evil (modal editing)
+;;; ------------------------------
+(use-package evil
+  :config
+  (evil-mode 1))
+
+(with-eval-after-load 'evil
+  (with-eval-after-load 'dired
+    (define-key dired-mode-map (kbd "RET") 'dired-find-file)))
+
+;;; ------------------------------
+;;; Move lines up/down
+;;; ------------------------------
+(use-package move-text
+  :config
+  (move-text-default-bindings)
+  (global-set-key (kbd "M-p") #'move-text-up)
+  (global-set-key (kbd "M-n") #'move-text-down))
+
+;;; ------------------------------
+;;; Per-file quick jumps
+;;; ------------------------------
+(global-set-key (kbd "C-c f") (lambda () (interactive) (find-file "~/.emacs")))
+(global-set-key (kbd "C-c r") (lambda () (interactive) (find-file "~/.zshrc")))
+(global-set-key (kbd "C-c i") (lambda () (interactive) (find-file "~/.config/i3/config")))
+(global-set-key (kbd "C-c v") (lambda () (interactive) (find-file "~/dev/")))
+
+;;; ------------------------------
+;;; Eval control
+;;; ------------------------------
+(defun rc/eval-buffer ()
+  "Evaluate current Emacs Lisp buffer safely."
+  (interactive)
+  (if (eq major-mode 'emacs-lisp-mode)
+      (progn
+        (funcall (symbol-function 'eval-buffer))
+        (message "Buffer evaluated!"))
+    (message "Not an Emacs Lisp buffer.")))
+
+(global-set-key (kbd "C-j") #'rc/eval-buffer)
+
+;;; ------------------------------
+;;; Saves, locks, backups
+;;; ------------------------------
+(setq auto-save-default nil
+      make-backup-files nil
+      create-lockfiles nil)
+
+;;; ------------------------------
+;;; Final touches
+;;; ------------------------------
+(setq custom-file (expand-file-name "~/.emacs-custom-vars.el"))
+(load custom-file 'noerror 'nomessage)
+
+
+(defun rc/maybe-backup-emacs ()
+  "If current buffer is ~/.emacs, save a timestamped copy in ~/.dotfiles/."
+  (when (and buffer-file-name
+             (string= (file-truename buffer-file-name)
+                      (file-truename "~/.emacs")))
+    (let ((dst (expand-file-name
+                (format ".emacs-backup-%s"
+                        (format-time-string "%Y-%m-%d-%H:%M:%S"))
+                "~/.dotfiles/")))
+      (copy-file buffer-file-name dst t)
+      (message "Backed up .emacs → %s" dst))))
+
+(add-hook 'after-save-hook #'rc/maybe-backup-emacs)
+
+
+
+;;; .emacs ends here
