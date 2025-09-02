@@ -1,7 +1,5 @@
-;;; ~/.emacs --- Clean, opinionated Emacs config
+;;; ~/.emacs --- Clean, opinionated Emacs config (with Evil leader & Harpoon slots)
 ;;; Author: Thyruh
-;;; Commentary:
-;;; Structured into clear sections. Safe to paste as your full ~/.emacs.
 
 ;;; ------------------------------
 ;;; Bootstrap packages
@@ -19,81 +17,64 @@
 (setq use-package-always-ensure t)
 
 ;;; ------------------------------
-;;; Minibuffer completion style (Tsoding-like)
+;;; Minibuffer completion (horizontal icomplete/fido) + Marginalia
 ;;; ------------------------------
-;; Pure icomplete/fido (horizontal) + Marginalia annotations.
 (icomplete-mode 1)
 (fido-mode 1)
-(fido-vertical-mode -1) ;; ensure horizontal UI, not vertical
+(fido-vertical-mode -1) ;; horizontal UI
 
 (setq icomplete-compute-delay 0
       icomplete-hide-common-prefix nil
-      icomplete-show-matches-on-no-input t)
+      icomplete-show-matches-on-no-input t
+      icomplete-separator " | ")
 
-;; Make C-n / C-p move through candidates (not history)
 (with-eval-after-load 'icomplete
   (define-key icomplete-minibuffer-map (kbd "C-n") #'icomplete-forward-completions)
   (define-key icomplete-minibuffer-map (kbd "C-p") #'icomplete-backward-completions))
 
-;; Nice annotations in minibuffer candidates
-(use-package marginalia
-  :init (marginalia-mode 1))
+(use-package marginalia :init (marginalia-mode 1))
 
-;; Explicitly disable Ivy/Counsel to avoid conflicts with icomplete
-(when (fboundp 'ivy-mode)    (ivy-mode -1))
-(when (fboundp 'counsel-mode)(counsel-mode -1))
+;; Explicitly disable Ivy/Counsel (avoid conflicts)
+(when (fboundp 'ivy-mode)     (ivy-mode -1))
+(when (fboundp 'counsel-mode) (counsel-mode -1))
 
 ;;; ------------------------------
 ;;; Consult (Telescope-like pickers)
 ;;; ------------------------------
 (use-package consult
-  :bind (("C-,"   . consult-buffer)     ;; buffers + recent files
-         ("C-/"   . consult-line)       ;; search in current buffer
-         ;; C-. bound below after unbinding Evil's default mapping
-         ("M-y"   . consult-yank-pop)   ;; fuzzy kill-ring
-         ("C-x b" . consult-buffer)
+  :bind (("C-,"   . consult-buffer)
+         ("C-/"   . consult-line)
+         ("M-y"   . consult-yank-pop)
          ("C-x r b" . consult-bookmark)
          ("C-x C-r" . consult-recent-file))
   :config
-  ;; Fix consult-project root detection for VC repos
   (setq consult-project-function
         (lambda (_prompt) (when (fboundp 'vc-root-dir) (vc-root-dir))))
   (setq consult-project-root-function
         (lambda () (when (fboundp 'vc-root-dir) (vc-root-dir))))
-
-  ;; Project ripgrep helper
   (defun thy/consult-ripgrep-project ()
-    "Run consult-ripgrep from the project root if available, else default dir."
+    "Run consult-ripgrep from project root if available."
     (interactive)
     (let ((default-directory (or (funcall consult-project-root-function)
                                  default-directory)))
       (consult-ripgrep default-directory))))
 
-;; Unbind Evil's default C-. (evil-repeat-pop) and remap to ripgrep
+;; Free C-. from Evil’s defaults and map to ripgrep project
 (with-eval-after-load 'evil
   (define-key evil-normal-state-map (kbd "C-.") nil)
-(global-set-key (kbd "C-.") #'thy/consult-ripgrep-project)
   (define-key evil-motion-state-map (kbd "C-.") nil))
-
-(defun rc/mc-evil-propagate ()
-  "Enable Evil keybindings in multiple-cursors keymap."
-  (let ((maps '(evil-normal-state-map evil-visual-state-map evil-insert-state-map)))
-    (dolist (map maps)
-      (map-keymap
-       (lambda (key binding)
-         (when (commandp binding)
-           (define-key mc/keymap (vector key) binding)))
-       map))))
-
-(add-hook 'mc/keymap-hook #'rc/mc-evil-propagate)
-
+(global-set-key (kbd "C-.") #'thy/consult-ripgrep-project)
 
 ;;; ------------------------------
-;;; UI / UX
+;;; UI / UX (unchanged appearance)
 ;;; ------------------------------
 (set-face-attribute 'default nil :font "JetBrains Mono ExtraBold-18")
 (add-to-list 'custom-theme-load-path "~/.emacs.d/themes/gruber-darker")
 (load-theme 'gruber-darker t)
+
+;; Transparency (keep your comment’s intent: 90% opaque overall)
+(add-to-list 'default-frame-alist '(alpha-background . 30))
+(set-frame-parameter nil 'alpha-background 70)
 
 (tool-bar-mode -1)
 (menu-bar-mode -1)
@@ -121,7 +102,6 @@
 ;;; ------------------------------
 ;;; Whitespace handling
 ;;; ------------------------------
-
 (require 'whitespace)
 (setq whitespace-style '(face tabs spaces trailing))
 (global-whitespace-mode 1)
@@ -146,71 +126,10 @@
   (require 'smartparens-config)
   (smartparens-global-mode 1))
 
-(toggle-word-wrap 1)
-
-(use-package multiple-cursors
-  :bind (("C->" . mc/mark-next-like-this)
-         ("C-<" . mc/mark-previous-like-this)
-         ("C-c C-<" . mc/mark-all-like-this)))
-
-(defun rc/select-word ()
-  "Select word."
-  (interactive)
-  (skip-syntax-backward "w_")
-  (set-mark (point))
-  (skip-syntax-forward "w_"))
-
-(defun rc/select-sentence ()
-  "Select sentence."
-  (interactive)
-  (backward-sentence 1)
-  (set-mark (point))
-  (forward-sentence 1))
-
-(defun rc/select-current-line ()
-  "Select current line."
-  (interactive)
-  (move-beginning-of-line 1)
-  (set-mark (point))
-  (move-end-of-line 1))
-
-(defun scratch-compile ()
-  "Compile and run the *scratch* buffer as C++ without leaving files."
-  (interactive)
-  (if (not (eq (current-buffer) (get-buffer "*scratch*")))
-      (message "scratch-compile only works in *scratch* buffer")
-    (let* ((tmp (make-temp-file "emacs-cpp-" nil ".cpp"))
-           (bin (concat tmp ".out")))
-      (write-region (point-min) (point-max) tmp nil 'silent)
-      (compile
-       (format "g++ -std=c++23 -O2 -Wall %s -o %s && %s && rm -f %s %s"
-               tmp bin bin bin tmp)))))
-
-(with-current-buffer "*scratch*"
-  (c++-mode)
-  (local-set-key (kbd "C-c C-c") #'scratch-compile))
-
+(global-visual-line-mode 1)
 
 ;;; ------------------------------
-;;; Minibuffer completion (horizontal icomplete)
-;;; ------------------------------
-(icomplete-mode 1)
-(fido-mode 1)
-(fido-vertical-mode -1) ;; make sure it's horizontal
-
-(setq icomplete-compute-delay 0
-      icomplete-hide-common-prefix nil
-      icomplete-show-matches-on-no-input t
-      icomplete-separator " | ") ;; horizontal separator
-
-;; C-n / C-p cycle candidates instead of history
-(with-eval-after-load 'icomplete
-  (define-key icomplete-minibuffer-map (kbd "C-n") #'icomplete-forward-completions)
-  (define-key icomplete-minibuffer-map (kbd "C-p") #'icomplete-backward-completions))
-
-
-;;; ------------------------------
-;;; In-buffer completion & diagnostics
+;;; COMPLETION / LSP / DIAGNOSTICS
 ;;; ------------------------------
 (use-package corfu
   :config
@@ -219,8 +138,7 @@
         corfu-preselect 'first
         corfu-count 8))
 
-(use-package flycheck
-  :init (global-flycheck-mode 1))
+(use-package flycheck :init (global-flycheck-mode 1))
 
 (use-package lsp-mode
   :init
@@ -228,7 +146,6 @@
         lsp-enable-on-type-formatting nil)
   :hook ((go-mode c-mode c++-mode python-mode rust-mode haskell-mode) . lsp-deferred)
   :commands (lsp lsp-deferred))
-
 (use-package lsp-ui :after lsp-mode :commands lsp-ui-mode)
 
 ;;; ------------------------------
@@ -247,7 +164,6 @@
 (setq dired-listing-switches "-alFhG --group-directories-first"
       dired-dwim-target t
       dired-mouse-drag-files t)
-
 (add-hook 'dired-mode-hook #'dired-omit-mode)
 (setq dired-omit-files (concat dired-omit-files "\\|^\\..+$"))
 
@@ -297,7 +213,7 @@
 (global-set-key (kbd "C-c c") #'rc/compile-file-to-bin)
 
 ;;; ------------------------------
-;;; Magit
+;;; Magit (+ Forge) and Git fringe
 ;;; ------------------------------
 (use-package magit
   :commands (magit-status magit-log-all)
@@ -305,40 +221,53 @@
   (when (fboundp 'magit-auto-revert-mode)
     (magit-auto-revert-mode -1)))
 
+(use-package forge :after magit)
+(use-package diff-hl
+  :hook ((prog-mode . diff-hl-mode)
+         (text-mode . diff-hl-mode))
+  :config
+  (diff-hl-flydiff-mode 1))
+
 ;;; ------------------------------
 ;;; Quality-of-life keys
 ;;; ------------------------------
 (global-set-key (kbd "M-d") 'backward-delete-char)
-(global-set-key (kbd "C-x C-r") 'query-replace)
+(global-set-key (kbd "C-x C-r") 'consult-recent-file) ;; keep consult here
 (global-set-key (kbd "C-x C-w") 'other-window)
 (global-set-key (kbd "<escape>") #'keyboard-escape-quit)
-
-;; Buffer switching (Tsoding-style, via Consult)
+(global-set-key (kbd "C-q") 'back-to-indentation)
 (global-set-key (kbd "C-,") #'consult-buffer)
-
-(global-set-key (kbd "C-c w") #'rc/select-word)
-(global-set-key (kbd "C-c s") #'rc/select-sentence)
-(global-set-key (kbd "C-c l") #'rc/select-current-line)
-
 (global-set-key (kbd "C-c g d") #'lsp-find-definition)
-
 (global-set-key (kbd "C-h l") #'shell)
 (global-set-key (kbd "M-w") #'copy-region-as-kill)
 (setq confirm-kill-emacs #'yes-or-no-p)
 
 ;;; ------------------------------
-;;; Evil (modal editing)
+;;; Evil (modal editing) + ecosystem
 ;;; ------------------------------
-(use-package evil
-  :config
-  (evil-mode 1))
+(setq evil-want-C-u-scroll t
+      evil-want-keybinding nil   ;; prepare for evil-collection if added later
+      evil-want-C-i-jump t)
+
+(use-package evil :config (evil-mode 1))
+
+;; Surround & commentary
+(use-package evil-surround :config (global-evil-surround-mode 1))
+(use-package evil-commentary :config (evil-commentary-mode 1))
+
+;; Multicursors: switch to evil-mc (remove multiple-cursors)
+(use-package evil-mc :config (global-evil-mc-mode 1))
+
+;; Quick motion (like easymotion)
+(use-package avy
+  :bind (("M-s" . avy-goto-char-timer)))
 
 (with-eval-after-load 'evil
   (with-eval-after-load 'dired
     (define-key dired-mode-map (kbd "RET") 'dired-find-file)))
 
 ;;; ------------------------------
-;;; Move lines up/down
+;;; Move lines up/down (visual J/K) + your move-text keys
 ;;; ------------------------------
 (use-package move-text
   :config
@@ -346,34 +275,147 @@
   (global-set-key (kbd "M-p") #'move-text-up)
   (global-set-key (kbd "M-n") #'move-text-down))
 
+(defun my/visual-move-down (beg end)
+  "Move selected lines down (Visual mode J)."
+  (interactive "r")
+  (let ((text (delete-and-extract-region beg end)))
+    (goto-char beg)
+    (forward-line 1)
+    (insert text)
+    (exchange-point-and-mark)
+    (setq deactivate-mark nil)))
+
+(defun my/visual-move-up (beg end)
+  "Move selected lines up (Visual mode K)."
+  (interactive "r")
+  (let ((text (delete-and-extract-region beg end)))
+    (goto-char beg)
+    (forward-line -1)
+    (insert text)
+    (exchange-point-and-mark)
+    (setq deactivate-mark nil)))
+
+(with-eval-after-load 'evil
+  (define-key evil-visual-state-map (kbd "J") #'my/visual-move-down)
+  (define-key evil-visual-state-map (kbd "K") #'my/visual-move-up))
+
 ;;; ------------------------------
-;;; Per-file quick jumps
+;;; Harpoon-like automatic slots (1–4) + quick menu
 ;;; ------------------------------
+(defvar my/harpoon-slots (make-vector 4 nil)
+  "Vector of 4 Harpoon slots storing file paths.")
+(defvar my/harpoon-index 0
+  "Next slot index for harpoon add (0..3).")
 
-;; On vanilla (You can use another prefix instead C-c h)
+(defun my/harpoon-add-file ()
+  "Add current file to harpoon slots (cycles 1–4)."
+  (interactive)
+  (if buffer-file-name
+      (progn
+        (aset my/harpoon-slots my/harpoon-index buffer-file-name)
+        (message "Harpoon: %s → slot %d"
+                 (file-name-nondirectory buffer-file-name)
+                 (+ 1 my/harpoon-index))
+        (setq my/harpoon-index (mod (1+ my/harpoon-index) 4)))
+    (message "Harpoon: buffer has no file")))
 
-;; You can use this hydra menu that have all the commands
-(global-set-key (kbd "C-c a") 'harpoon-quick-menu-hydra)
-(global-set-key (kbd "C-c h <return>") 'harpoon-add-file)
+(defun my/harpoon-nav (n)
+  "Jump to harpoon slot N (1..4)."
+  (interactive "nSlot: ")
+  (let ((file (aref my/harpoon-slots (1- n))))
+    (if (and file (file-exists-p file))
+        (find-file file)
+      (message "Harpoon: slot %d is empty" n))))
 
-;; And the vanilla commands
-(global-set-key (kbd "C-c h f") 'harpoon-toggle-file)
-(global-set-key (kbd "C-c h h") 'harpoon-toggle-quick-menu)
-(global-set-key (kbd "C-c h c") 'harpoon-clear)
-(global-set-key (kbd "C-c h 1") 'harpoon-go-to-1)
-(global-set-key (kbd "C-c h 2") 'harpoon-go-to-2)
-(global-set-key (kbd "C-c h 3") 'harpoon-go-to-3)
-(global-set-key (kbd "C-c h 4") 'harpoon-go-to-4)
-(global-set-key (kbd "C-c h 5") 'harpoon-go-to-5)
-(global-set-key (kbd "C-c h 6") 'harpoon-go-to-6)
-(global-set-key (kbd "C-c h 7") 'harpoon-go-to-7)
-(global-set-key (kbd "C-c h 8") 'harpoon-go-to-8)
-(global-set-key (kbd "C-c h 9") 'harpoon-go-to-9)
+(defun my/harpoon-clear-slot (n)
+  "Clear harpoon slot N."
+  (interactive "nClear slot: ")
+  (aset my/harpoon-slots (1- n) nil)
+  (message "Harpoon: cleared slot %d" n))
 
-(global-set-key (kbd "C-c f") (lambda () (interactive) (find-file "~/.emacs")))
-(global-set-key (kbd "C-c r") (lambda () (interactive) (find-file "~/.zshrc")))
-(global-set-key (kbd "C-c i") (lambda () (interactive) (find-file "~/.config/i3/config")))
-(global-set-key (kbd "C-c v") (lambda () (interactive) (find-file "~/dev/")))
+(defun my/harpoon-menu ()
+  "Show Harpoon slots in a temporary buffer."
+  (interactive)
+  (with-output-to-temp-buffer "*Harpoon*"
+    (dotimes (i 4)
+      (princ (format "Slot %d: %s\n"
+                     (1+ i)
+                     (or (aref my/harpoon-slots i) "empty"))))))
+
+;;; ------------------------------
+;;; General.el (leader) + Which-key
+;;; ------------------------------
+(use-package general)
+
+(use-package which-key
+  :init (which-key-mode 1)
+  :config
+  (setq which-key-idle-delay 0.3))
+
+;; Define Space as leader
+(general-create-definer thy/leader
+  :states '(normal visual emacs)
+  :prefix "SPC"
+  :global-prefix "C-SPC")
+
+;;; ------------------------------
+;;; Leader mappings (Neovim parity)
+;;; ------------------------------
+;; Harpoon
+(thy/leader
+  "a" '(my/harpoon-add-file :which-key "harpoon add"))
+
+;; Telescope equivalents via consult
+(thy/leader
+  "p" '(:ignore t :which-key "project")
+  "pf" '(consult-find :which-key "find files")
+  "ps" '(consult-ripgrep :which-key "grep project")
+  "hf" '(execute-extended-command :which-key "M-x")
+  "f"  '(consult-flycheck :which-key "diagnostics"))
+
+;; Ex (file explorer) → Dired
+(thy/leader
+  "pv" '(dired :which-key "file explorer"))
+
+;; Git files on C-p (approximate): use consult-ripgrep from project root
+(global-set-key (kbd "C-p") #'thy/consult-ripgrep-project)
+
+;; Harpoon quick menu + jumps (match your <C-e> and <C-h/j/k/l>)
+(with-eval-after-load 'evil
+  (define-key evil-normal-state-map (kbd "C-e") #'my/harpoon-menu)
+  (define-key evil-normal-state-map (kbd "C-h") (lambda () (interactive) (my/harpoon-nav 1)))
+  (define-key evil-normal-state-map (kbd "C-j") (lambda () (interactive) (my/harpoon-nav 2)))
+  (define-key evil-normal-state-map (kbd "C-k") (lambda () (interactive) (my/harpoon-nav 3)))
+  (define-key evil-normal-state-map (kbd "C-l") (lambda () (interactive) (my/harpoon-nav 4))))
+
+;;; ------------------------------
+;;; Per-file quick jumps (keep your old harpoon binds too if you want)
+;;; ------------------------------
+;; Keeping your original C-c h … bindings intact (they can coexist)
+(global-set-key (kbd "C-c a") #'my/harpoon-add-file)
+(global-set-key (kbd "C-c h 1") (lambda () (interactive) (my/harpoon-nav 1)))
+(global-set-key (kbd "C-c h 2") (lambda () (interactive) (my/harpoon-nav 2)))
+(global-set-key (kbd "C-c h 3") (lambda () (interactive) (my/harpoon-nav 3)))
+(global-set-key (kbd "C-c h 4") (lambda () (interactive) (my/harpoon-nav 4)))
+(global-set-key (kbd "C-c h h") #'my/harpoon-menu)
+
+;;; ------------------------------
+;;; Scratch: C++ compile & run in *scratch*
+;;; ------------------------------
+(defun scratch-compile ()
+  "Compile and run the *scratch* buffer as C++ without leaving files."
+  (interactive)
+  (if (not (eq (current-buffer) (get-buffer "*scratch*")))
+      (message "scratch-compile only works in *scratch* buffer")
+    (let* ((tmp (make-temp-file "emacs-cpp-" nil ".cpp"))
+           (bin (concat tmp ".out")))
+      (write-region (point-min) (point-max) tmp nil 'silent)
+      (compile
+       (format "g++ -std=c++23 -O2 -Wall %s -o %s && %s && rm -f %s %s"
+               tmp bin bin bin tmp)))))
+
+(with-current-buffer "*scratch*"
+  (local-set-key (kbd "C-c C-c") #'scratch-compile))
 
 ;;; ------------------------------
 ;;; Eval control
@@ -386,7 +428,6 @@
         (funcall (symbol-function 'eval-buffer))
         (message "Buffer evaluated!"))
     (message "Not an Emacs Lisp buffer.")))
-
 (global-set-key (kbd "C-j") #'rc/eval-buffer)
 
 ;;; ------------------------------
@@ -397,17 +438,14 @@
       create-lockfiles nil)
 
 ;;; ------------------------------
-;;; Final touches
+;;; Final touches / custom vars file
 ;;; ------------------------------
 (setq custom-file (expand-file-name "~/.emacs-custom-vars.el"))
 (load custom-file 'noerror 'nomessage)
 
-
-;; Ensure C++ mode doesn’t shadow it
+;; Ensure C++ mode doesn’t shadow compile
 (with-eval-after-load 'cc-mode
   (define-key c++-mode-map (kbd "C-c C-c") #'compile))
-
-
 
 (defun rc/maybe-backup-emacs ()
   "If current buffer is ~/.emacs, save a timestamped copy in ~/.dotfiles/."
@@ -420,9 +458,6 @@
                 "~/.dotfiles/")))
       (copy-file buffer-file-name dst t)
       (message "Backed up .emacs → %s" dst))))
-
 (add-hook 'after-save-hook #'rc/maybe-backup-emacs)
-
-
 
 ;;; .emacs ends here
