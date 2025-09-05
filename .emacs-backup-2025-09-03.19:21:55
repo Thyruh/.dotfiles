@@ -39,7 +39,6 @@
   ;; <leader>pv -> Dired (file explorer)
   (thy/leader
     "p" '(:ignore t :which-key "project")
-    "pv" '(dired :which-key "file explorer")
     ;; telescope-likes
     "pf" '(consult-find :which-key "find files")
     "ps" '(consult-ripgrep :which-key "grep in project")
@@ -60,8 +59,8 @@
                (insert (format "%d. %s\n" i file)))
       (goto-char (point-min))
       (my/harpoon-buffer-mode))
-    (pop-to-buffer buf)))
 
+    (pop-to-buffer buf)))
 (define-derived-mode my/harpoon-buffer-mode special-mode "Harpoon"
   "Major mode for browsing Harpoon marks."
   (setq buffer-read-only t)
@@ -312,36 +311,10 @@
     (ansi-color-apply-on-region compilation-filter-start (point))))
 (add-hook 'compilation-filter-hook #'rc/colorize-compilation-buffer)
 
-(defun rc/compile-file-to-bin ()
-  "Automatically compiles .cpp/.go/.hs files to 'bin/' directory."
-  (interactive)
-  (unless buffer-file-name (user-error "Buffer not visiting a file"))
-  (let* ((file buffer-file-name)
-         (dir  (file-name-directory file))
-         (bin  (expand-file-name "bin" dir))
-         (out  (expand-file-name (file-name-sans-extension (file-name-nondirectory file)) bin)))
-    (unless (file-directory-p bin)
-      (make-directory bin))
-    (cond
-     ((string-match-p "\\.cpp$" file)
-      (compile (format "g++ -O2 -std=c++23 -o %s %s"
-                       (shell-quote-argument out)
-                       (shell-quote-argument file))))
-     ((string-match-p "\\.go$" file)
-      (compile (format "go build -o %s %s"
-                       (shell-quote-argument out)
-                       (shell-quote-argument file))))
-     ((string-match-p "\\.hs$" file)
-      (compile (format "ghc --make %s -o %s"
-                       (shell-quote-argument file)
-                       (shell-quote-argument out))))
-     (t (user-error "Unsupported file type: %s" file)))))
-
-(global-set-key (kbd "C-c c") #'rc/compile-file-to-bin)
-
 ;;; ------------------------------
 ;;; Harpoon-like automatic slots (1–4)
 ;;; ------------------------------
+
 (defvar my/harpoon-slots (make-vector 4 nil)
   "Vector of 4 harpoon slots storing file paths.")
 
@@ -456,18 +429,19 @@
 ;;; Quality-of-life keys
 ;;; ------------------------------
 (global-set-key (kbd "M-d") 'backward-delete-char)
+(global-set-key (kbd "C-y") 'yank)
 (global-set-key (kbd "C-x C-r") 'query-replace)
 (global-set-key (kbd "C-x C-w") 'other-window)
 (global-set-key (kbd "<escape>") #'keyboard-escape-quit)
 
-(global-set-key (kbd "C-c l") 'my/select-line)
-
-(defun my/select-line ()
-  "Select the current line."
+(defun rc/select-current-line ()
+  "Select current line."
   (interactive)
-  (move-beginning-of-line nil)
-  (set-mark (line-end-position)))
+  (move-beginning-of-line 1)
+  (set-mark (point))
+  (move-end-of-line 1))
 
+(global-set-key (kbd "C-c l") #'rc/select-current-line)
 
 (global-set-key (kbd "C-q") 'back-to-indentation)
 
@@ -482,6 +456,7 @@
 
 (global-set-key (kbd "C-h l") #'shell)
 (global-set-key (kbd "M-w") #'copy-region-as-kill)
+
 (setq confirm-kill-emacs #'yes-or-no-p)
 
 ;;; ------------------------------
@@ -529,20 +504,6 @@
 (global-set-key (kbd "C-c r") (lambda () (interactive) (find-file "~/.zshrc")))
 (global-set-key (kbd "C-c i") (lambda () (interactive) (find-file "~/.config/i3/config")))
 (global-set-key (kbd "C-c v") (lambda () (interactive) (find-file "~/dev/")))
-
-;;; ------------------------------
-;;; Eval control
-;;; ------------------------------
-(defun rc/eval-buffer ()
-  "Evaluate current Emacs Lisp buffer safely."
-  (interactive)
-  (if (eq major-mode 'emacs-lisp-mode)
-      (progn
-        (funcall (symbol-function 'eval-buffer))
-        (message "Buffer evaluated!"))
-    (message "Not an Emacs Lisp buffer.")))
-
-(global-set-key (kbd "C-j") #'rc/eval-buffer)
 
 ;;; ------------------------------
 ;;; Saves, locks, backups

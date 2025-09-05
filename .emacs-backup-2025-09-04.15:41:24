@@ -291,6 +291,7 @@
       (kbd "j") 'evil-next-line
       (kbd "k") 'evil-previous-line
       (kbd "RET") 'dired-find-file
+      (kbd "f") 'revert-buffer
       (kbd "^") 'dired-up-directory)))
 
 ;;; ------------------------------
@@ -429,6 +430,7 @@
 ;;; Quality-of-life keys
 ;;; ------------------------------
 (global-set-key (kbd "M-d") 'backward-delete-char)
+(global-set-key (kbd "C-y") 'yank)
 (global-set-key (kbd "C-x C-r") 'query-replace)
 (global-set-key (kbd "C-x C-w") 'other-window)
 (global-set-key (kbd "<escape>") #'keyboard-escape-quit)
